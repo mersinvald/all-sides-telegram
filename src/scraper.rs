@@ -1,8 +1,10 @@
 use anyhow::{anyhow, bail};
 use chrono::{DateTime, FixedOffset};
-use select::document::Document;
-use select::node;
-use select::predicate::{Attr, Class, Name};
+use select::{
+    document::Document,
+    node,
+    predicate::{Attr, Class, Name},
+};
 use std::str::FromStr;
 
 #[derive(Debug, Clone)]
@@ -88,7 +90,7 @@ impl Paragraph<'_> {
                     .filter(|n| n.is(Name("a")))
                     .and_then(|a| {
                         Some(format!(
-                            "<a href=\"{url}\">{text}</a>",
+                            r#"<a href="{url}">{text}</a>"#,
                             url = a.attr("href")?,
                             text = a.text()
                         ))
@@ -109,16 +111,16 @@ impl FromHTML<'_> for MainPage {
         let mut teasers: Vec<_> = html.find(Class("view-story-id-single-story")).map(|block| {
             let url = block.find(Name("a")).next()
                 .and_then(|node| node.attr("href"))
-                .ok_or_else(|| anyhow!("cannot query story url (class=view-story-id-single-story > a.href)"))?;
+                .or_error_msg("cannot query story url (class=view-story-id-single-story > a.href)")?;
 
             let title = block.find(Class("story-title")).next()
-                .ok_or_else(|| anyhow!("cannot query story url (class=view-story-id-single-story > class=story-title)"))?
+                .or_error_msg("cannot query story url (class=view-story-id-single-story > class=story-title)")?
                 .text();
 
             let img_url = block.find(Class("story-id-image")).next()
                 .and_then(|node| node.find(Name("img")).next())
                 .and_then(|node| node.attr("src"))
-                .ok_or_else(|| anyhow!("cannot query story url (class=view-story-id-single-story > 0 > img.src)"))?;
+                .or_error_msg("cannot query story url (class=view-story-id-single-story > 0 > img.src)")?;
 
             Ok(Teaser {
                 title,
@@ -143,12 +145,12 @@ impl<'a> FromHTML<'a> for Story<'a> {
         let story = html
             .find(Attr("id", "content"))
             .next()
-            .ok_or_else(|| anyhow!("cannot query story body (id=content)"))?;
+            .or_error_msg("cannot query story body (id=content)")?;
 
         let title = story
             .find(Class("taxonomy-heading"))
             .next()
-            .ok_or_else(|| anyhow!("cannot query story heading (class=taxonomy-heading)"))?
+            .or_error_msg("cannot query story heading (class=taxonomy-heading)")?
             .text()
             .trim()
             .into();
@@ -157,20 +159,16 @@ impl<'a> FromHTML<'a> for Story<'a> {
             .find(Class("date-display-single"))
             .next()
             .and_then(|node| node.attr("content"))
-            .ok_or_else(|| {
-                anyhow!(
-                    "cannot query story publishing date (class=date-display-single, attr=content)"
-                )
-            })?;
+            .or_error_msg(
+                "cannot query story publishing date (class=date-display-single, attr=content)",
+            )?;
         let datetime = chrono::DateTime::parse_from_rfc3339(datetime)
             .map_err(|err| anyhow!("unexpected date-time format (not rfc3339): {}", err))?;
 
         let description = html
             .find(Class("story-id-page-description"))
             .next()
-            .ok_or_else(|| {
-                anyhow!("cannot query story summary (class=story-id-page-description)")
-            })?;
+            .or_error_msg("cannot query story summary (class=story-id-page-description)")?;
         let paragraphs: Vec<_> = description
             .children()
             .filter(|node| node.is(Name("p")))
@@ -183,59 +181,77 @@ impl<'a> FromHTML<'a> for Story<'a> {
         let articles = story
             .find(Class("feature-thumbs-wrapper"))
             .next()
-            .ok_or_else(|| {
-                anyhow!("cannot query linked stories container (class=feature-thumbs-wrapper)")
-            })?;
+            .or_error_msg("cannot query linked stories container (class=feature-thumbs-wrapper)")?;
 
         let articles = articles.find(Class("feature-thumbs"));
-        let articles: Vec<_> = articles.map(|node| {
-            let title = node.find(Class("news-title")).next()
-                .and_then(|node| node.find(Name("a")).next())
-                .map(|node| node.text())
-                .ok_or_else(|| anyhow!("cannot query linked article title (class=news-title > a)"))?
-                .trim().into();
+        let articles: Vec<_> = articles
+            .map(|node| {
+                let title = node
+                    .find(Class("news-title"))
+                    .next()
+                    .and_then(|node| node.find(Name("a")).next())
+                    .map(|node| node.text())
+                    .or_error_msg("cannot query linked article title (class=news-title > a)")?
+                    .trim()
+                    .into();
 
-            let url = node.find(Class("read-more-story")).next()
-                .and_then(|node| node.find(Name("a")).next())
-                .and_then(|node| node.attr("href"))
-                .ok_or_else(|| anyhow!("cannot query linked article origin url (class=read-more-story > a.href)"))?
-                .to_owned();
+                let url = node
+                    .find(Class("read-more-story"))
+                    .next()
+                    .and_then(|node| node.find(Name("a")).next())
+                    .and_then(|node| node.attr("href"))
+                    .or_error_msg(
+                        "cannot query linked article origin url (class=read-more-story > a.href)",
+                    )?
+                    .to_owned();
 
-            let source = node.find(Class("news-source")).next()
-                .ok_or_else(|| anyhow!("cannot query news article source (class=news-source)"))?
-                .text();
+                let source = node
+                    .find(Class("news-source"))
+                    .next()
+                    .or_error_msg("cannot query news article source (class=news-source)")?
+                    .text();
 
-            let bias = node.find(Class("bias-image")).next()
-                .and_then(|node| node.first_child())
-                .filter(|node| node.is(Name("img")))
-                .and_then(|node| node.attr("title"))
-                .ok_or_else(|| anyhow!("cannot query news source political bias (class=bias-image > img.title)"))?;
+                let bias = node
+                    .find(Class("bias-image"))
+                    .next()
+                    .and_then(|node| node.first_child())
+                    .filter(|node| node.is(Name("img")))
+                    .and_then(|node| node.attr("title"))
+                    .or_error_msg(
+                        "cannot query news source political bias (class=bias-image > img.title)",
+                    )?;
 
-            if !bias.contains(':') || bias.is_empty() {
-                bail!("unexpected bias format: expected '<any>: <affiliation>'");
-            }
+                if !bias.contains(':') || bias.is_empty() {
+                    bail!("unexpected bias format: expected '<any>: <affiliation>'");
+                }
 
-            let side_shorthand = bias.split(':').last()
-                .ok_or_else(|| anyhow!("bug: unexpected bias format (pre-check passed, parsing failed)"))?
-                .trim();
+                let side_shorthand = bias
+                    .split(':')
+                    .last()
+                    .or_error_msg("bug: unexpected bias format (pre-check passed, parsing failed)")?
+                    .trim();
 
-            let side = Side::from_str(side_shorthand)?;
+                let side = Side::from_str(side_shorthand)?;
 
-            let description = node.find(Class("news-body")).next()
-                .ok_or_else(|| anyhow!("cannot query article summary (class=news-body)"))?;
-            let paragraphs: Vec<_> = description.children()
-                .filter(|node| node.is(Name("p")))
-                .map(Paragraph)
-                .collect();
+                let description = node
+                    .find(Class("news-body"))
+                    .next()
+                    .ok_or_else(|| anyhow!("cannot query article summary (class=news-body)"))?;
+                let paragraphs: Vec<_> = description
+                    .children()
+                    .filter(|node| node.is(Name("p")))
+                    .map(Paragraph)
+                    .collect();
 
-            Ok(Article {
-                side,
-                source,
-                title,
-                summary: paragraphs,
-                url,
+                Ok(Article {
+                    side,
+                    source,
+                    title,
+                    summary: paragraphs,
+                    url,
+                })
             })
-        }).collect::<Result<_, _>>()?;
+            .collect::<Result<_, _>>()?;
 
         Ok(Story {
             title,
@@ -247,7 +263,17 @@ impl<'a> FromHTML<'a> for Story<'a> {
 }
 
 fn normalize_allsides_url(relative_url: &str) -> String {
-    format!("https://www.allsides.com{}", relative_url)
+    ["https://www.allsides.com", relative_url].concat()
+}
+
+trait OrErrorMessage<T> {
+    fn or_error_msg(self, msg: &'static str) -> Result<T, anyhow::Error>;
+}
+
+impl<T> OrErrorMessage<T> for Option<T> {
+    fn or_error_msg(self, msg: &'static str) -> Result<T, anyhow::Error> {
+        self.ok_or_else(|| anyhow::Error::msg(msg))
+    }
 }
 
 #[cfg(test)]

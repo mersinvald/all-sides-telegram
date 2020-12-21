@@ -1,3 +1,4 @@
+use crate::config::TelegramOptions;
 use teloxide::prelude::*;
 use teloxide::types::{ChatId, ParseMode};
 
@@ -8,15 +9,15 @@ pub struct Bot {
 }
 
 impl Bot {
-    pub fn try_new(token: &str, channel_id: &str, admin_id: &str) -> anyhow::Result<Self> {
+    pub fn try_new(opts: &TelegramOptions) -> anyhow::Result<Self> {
         let bot = teloxide::Bot::builder()
-            .token(token)
+            .token(&opts.secret)
             .parse_mode(ParseMode::HTML)
             .build();
         Ok(Bot {
             bot,
-            channel_id: channel_id.into(),
-            admin_id: admin_id.into(),
+            channel_id: opts.channel.clone(),
+            admin_id: opts.admin.clone(),
         })
     }
 
@@ -24,7 +25,7 @@ impl Bot {
         self.bot
             .send_message(
                 ChatId::ChannelUsername(self.admin_id.clone()),
-                format!("{}", err),
+                err.to_string(),
             )
             .send()
             .await?;
@@ -35,7 +36,7 @@ impl Bot {
         self.bot
             .send_message(
                 ChatId::ChannelUsername(self.channel_id.clone()),
-                format!("{}", msg),
+                msg.to_string(),
             )
             .send()
             .await?;

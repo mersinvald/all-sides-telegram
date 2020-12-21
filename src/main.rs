@@ -1,18 +1,17 @@
-#![feature(try_blocks)]
-
 mod config;
 mod loader;
 mod scraper;
 mod state;
 mod tg_bot;
 
-use self::config::Config;
-use self::loader::HtmlLoader;
-use self::scraper::{FromHTML, MainPage, Story};
-use self::state::State;
-use self::tg_bot::Bot;
+use config::Config;
+use loader::HtmlLoader;
+use scraper::{FromHTML, MainPage, Story};
+use state::State;
+use tg_bot::Bot;
 
 use handlebars::Handlebars;
+use itertools::Itertools;
 use serde_json::json;
 use std::time::Duration;
 
@@ -29,11 +28,7 @@ struct AllSidesTgImporter {
 impl AllSidesTgImporter {
     pub async fn try_new(cfg: Config) -> anyhow::Result<AllSidesTgImporter> {
         let loader = HtmlLoader::try_new(&cfg.webdriver_host, cfg.webdriver_port).await?;
-        let bot = Bot::try_new(
-            &cfg.telegram_secret,
-            &cfg.telegram_channel,
-            &cfg.telegram_admin,
-        )?;
+        let bot = Bot::try_new(&cfg.telegram)?;
         let state = State::try_new(&cfg.story_db)?;
         let mut template = Handlebars::new();
         template
@@ -72,21 +67,20 @@ impl AllSidesTgImporter {
 
             let story = self.loader.open(&teaser.url).await?;
             let story = Story::from_html(&story)?;
-            let formatted = self.format_story(&story, &teaser.url)?;
 
-            self.bot.publish_message(formatted).await?;
-            self.state.set_published(&teaser.url).await?;
+            self.publish_story(&story, &teaser.url).await?;
         }
         Ok(())
     }
 
+    async fn publish_story(&mut self, story: &Story<'_>, url: &str) -> anyhow::Result<()> {
+        let formatted = self.format_story(story, url)?;
+        self.bot.publish_message(formatted).await?;
+        self.state.set_published(url).await
+    }
+
     fn format_story(&self, story: &Story, url: &str) -> anyhow::Result<String> {
-        let story_content = story
-            .summary
-            .iter()
-            .map(|p| p.telegram_html())
-            .collect::<Vec<String>>()
-            .join("\n\n"); // any way to do that nicely without collecting to Vec<String> first?
+        let story_content = story.summary.iter().map(|p| p.telegram_html()).join("\n\n");
 
         let side_stories = story
             .articles
@@ -97,7 +91,6 @@ impl AllSidesTgImporter {
                     .iter()
                     .map(|p| p.telegram_html())
                     .take_while(|para| !para.ends_with("..."))
-                    .collect::<Vec<String>>()
                     .join("\n\n");
 
                 json!({
@@ -110,7 +103,7 @@ impl AllSidesTgImporter {
             })
             .collect::<Vec<_>>();
 
-        let side_stories = serde_json::to_value(side_stories)?;
+        let side_stories = serde_json::Value::Array(side_stories);
 
         let data = json!({
             "story_title": story.title,
