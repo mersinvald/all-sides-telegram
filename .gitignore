@@ -1,0 +1,5 @@
+/target
+.idea/
+*.sled
+.env
+docker-compose.yml

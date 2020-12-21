@@ -1,0 +1,38 @@
+[package]
+name = "all-sides-telegram"
+version = "0.1.0"
+authors = ["Mike Lubinets <lubinets@advancedblockchain.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[[bin]]
+name = "astg"
+path = "src/main.rs"
+
+
+[dependencies]
+anyhow = "1.0"
+select = "0.5"
+chrono = "0.4"
+fantoccini = "0.14"
+webdriver = "0.41"
+serde_json = "1.0"
+teloxide = "0.3"
+rusqlite = "0.24"
+envy = "0.4"
+sled = "0.34"
+log = "0.4"
+dotenv = "0.15"
+env_logger = "0.8"
+handlebars = "3.5"
+
+[dependencies.tokio]
+version = "0.2"
+features = ["rt-threaded", "time", "macros"]
+
+[dependencies.serde]
+version = "1"
+features = ["derive"]
+
+[dev-dependencies]
+pretty_assertions = "0.6.1"
