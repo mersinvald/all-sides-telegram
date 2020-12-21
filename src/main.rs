@@ -1,3 +1,5 @@
+#![feature(try_blocks)]
+
 mod config;
 mod loader;
 mod scraper;
@@ -69,20 +71,21 @@ impl AllSidesTgImporter {
 
             let story = self.loader.open(&teaser.url).await?;
             let story = Story::from_html(&story)?;
-            let formatted = self.format_post_html(&story, &teaser.url)?;
+            let formatted = self.format_story(&story, &teaser.url)?;
+
             self.bot.publish_message(formatted).await?;
             self.state.set_published(&teaser.url).await?;
         }
         Ok(())
     }
 
-    fn format_post_html(&self, story: &Story, url: &str) -> anyhow::Result<String> {
+    fn format_story(&self, story: &Story, url: &str) -> anyhow::Result<String> {
         let story_content = story
             .summary
             .iter()
-            .map(|p| p.text())
+            .map(|p| p.telegram_html())
             .collect::<Vec<String>>()
-            .join("\n\n");
+            .join("\n\n"); // any way to do that nicely without collecting to Vec<String> first?
 
         let side_stories = story
             .articles
@@ -91,8 +94,8 @@ impl AllSidesTgImporter {
                 let article_content = article
                     .summary
                     .iter()
-                    .map(|p| p.text())
-                    .filter(|para| !para.ends_with("..."))
+                    .map(|p| p.telegram_html())
+                    .take_while(|para| !para.ends_with("..."))
                     .collect::<Vec<String>>()
                     .join("\n\n");
 

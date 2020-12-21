@@ -77,7 +77,25 @@ impl Side {
 
 impl Paragraph<'_> {
     pub fn text(&self) -> String {
-        self.0.text().trim().to_owned()
+        self.0.text()
+    }
+
+    pub fn telegram_html(&self) -> String {
+        self.0
+            .children()
+            .map(|n| {
+                Some(n)
+                    .filter(|n| n.is(Name("a")))
+                    .and_then(|a| {
+                        Some(format!(
+                            "<a href=\"{url}\">{text}</a>",
+                            url = a.attr("href")?,
+                            text = a.text()
+                        ))
+                    })
+                    .unwrap_or_else(|| n.text())
+            })
+            .collect::<String>()
     }
 }
 
@@ -270,7 +288,7 @@ mod tests {
         );
         assert_eq!(
             parsed.summary[0].text(),
-            r#"A former aide accused New York Gov. Andrew Cuomo (D) of sexually harassing her while she worked for him between 2015 and 2018. Lindsey Boylan, a current candidate for Manhattan borough president, said "Yes, @NYGovCuomo sexually harassed me for years. Many saw it, and watched" in a tweet Sunday morning. The governor's office responded by saying "There is simply no truth to these claims.""#
+            r#"A former aide accused New York Gov. Andrew Cuomo (D) of sexually harassing her while she worked for him between 2015 and 2018. Lindsey Boylan, a current candidate for Manhattan borough president, said "Yes, @NYGovCuomo sexually harassed me for years. Many saw it, and watched" in a tweet Sunday morning. The governor's office responded by saying "There is simply no truth to these claims." "#
         );
         assert_eq!(
             parsed.summary[1].text(),
@@ -344,6 +362,28 @@ mod tests {
             r#"It’s a serious charge, one Cuomo flatly denies. The details? Boylan won’t say. She cites no specific allegations and provides no evidence. She won’t even respond to requests for further comment. “I have no interest in talking to journalists,” she declares. “I..."#
         );
 
+        Ok(())
+    }
+
+    #[test]
+    fn paragraph_to_text() -> anyhow::Result<()> {
+        let html = Document::from(include_str!("../data/allsides-story.html"));
+        let parsed = Story::from_html(&html)?;
+        assert_eq!(
+            parsed.summary[0].text(),
+            r#"A former aide accused New York Gov. Andrew Cuomo (D) of sexually harassing her while she worked for him between 2015 and 2018. Lindsey Boylan, a current candidate for Manhattan borough president, said "Yes, @NYGovCuomo sexually harassed me for years. Many saw it, and watched" in a tweet Sunday morning. The governor's office responded by saying "There is simply no truth to these claims." "#
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn paragraph_to_tg_html() -> anyhow::Result<()> {
+        let html = Document::from(include_str!("../data/allsides-story.html"));
+        let parsed = Story::from_html(&html)?;
+        assert_eq!(
+            parsed.summary[0].telegram_html(),
+            r#"A former aide accused New York Gov. Andrew Cuomo (D) of sexually harassing her while she worked for him between 2015 and 2018. Lindsey Boylan, a current candidate for Manhattan borough president, said "Yes, @NYGovCuomo sexually harassed me for years. Many saw it, and watched" <a href="https://twitter.com/LindseyBoylan/status/1338125549756182529">in a tweet</a> Sunday morning. The governor's office responded by saying "There is simply no truth to these claims." "#
+        );
         Ok(())
     }
 }
