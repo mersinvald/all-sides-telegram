@@ -127,6 +127,7 @@ impl AllSidesTgImporter {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     dotenv::dotenv().ok();
+    env_logger::init();
     let config = envy::prefixed("ASTG_").from_env::<Config>()?;
     let bot = AllSidesTgImporter::try_new(config).await?;
     bot.run().await?;
