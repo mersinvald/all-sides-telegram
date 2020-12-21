@@ -55,7 +55,8 @@ impl AllSidesTgImporter {
                 self.bot
                     .log_error(e)
                     .await
-                    .expect("failed to log error into admin telegram chat");
+                    .map_err(|e| log::error!("failed to post log message to telegram: {}", e))
+                    .ok();
             }
             tokio::time::delay_for(delay).await;
         }
