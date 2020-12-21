@@ -46,6 +46,7 @@ impl AllSidesTgImporter {
     }
 
     pub async fn run(mut self) -> anyhow::Result<()> {
+        let delay = Duration::from_secs(self.cfg.update_interval * 60);
         loop {
             if let Err(e) = self.tick().await {
                 log::error!("{}", e);
@@ -54,6 +55,7 @@ impl AllSidesTgImporter {
                     .await
                     .expect("failed to log error into admin telegram chat");
             }
+            tokio::time::delay_for(delay).await;
         }
     }
 
@@ -71,7 +73,6 @@ impl AllSidesTgImporter {
             self.bot.publish_message(formatted).await?;
             self.state.set_published(&teaser.url).await?;
         }
-        tokio::time::delay_for(Duration::from_secs(self.cfg.update_interval * 60)).await;
         Ok(())
     }
 
