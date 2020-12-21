@@ -104,6 +104,7 @@ pub trait FromHTML<'a>: 'a + Sized {
 }
 
 impl FromHTML<'_> for MainPage {
+    // TODO: get list of stories directly from AllSides API instead of this atrocity
     fn from_html(html: &Document) -> anyhow::Result<Self> {
         let mut teasers: Vec<_> = html.find(Class("view-story-id-single-story")).map(|block| {
             let url = block.find(Name("a")).next()
