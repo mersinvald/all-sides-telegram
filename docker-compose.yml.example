@@ -1,4 +1,4 @@
-version: "3.9"
+version: "3.8"
 
 services:
   geckodriver:
@@ -9,23 +9,23 @@ services:
       - astg
 
   all-sides-telegram:
+    build: .
     volumes:
       - type: volume
         source: astg
         target: /var/lib/astg
     networks:
       - astg
-    build: .
+    links:
+      - geckodriver
     environment:
-      - ASTG_UPDATE_INTERVAL=10
-      - ASTG_STORY_DB=/var/lib/astg/stories.sled
-      - ASTG_WEBDRIVER_HOST=127.0.0.1
-      - ASTG_WEBDRIVER_PORT=4444
-      - ASTG_TELEGRAM_SECRET="SECRET"
-      - ASTG_TELEGRAM_ADMIN="@ADMIN"
-      - ASTG_TELEGRAM_CHANNEL="@allsidesnews"
-    restart_policy:
-      condition: on-failure
+      ASTG_UPDATE_INTERVAL: 10
+      ASTG_STORY_DB: /var/lib/astg/stories.sled
+      ASTG_WEBDRIVER_HOST: geckodriver
+      ASTG_WEBDRIVER_PORT: 4444
+      ASTG_TELEGRAM_SECRET: "SECRET"
+      ASTG_TELEGRAM_ADMIN: "@ADMIN"
+      ASTG_TELEGRAM_CHANNEL: "@allsidesnews"
 
 volumes:
   astg:
