@@ -13,8 +13,7 @@ impl HtmlLoader {
         caps.insert(
             "moz:firefoxOptions".into(),
             json!({
-                "args": ["-headless"],
-                "log": {"level": "debug"}
+                "args": ["-headless"]
             }),
         );
         let url = format!("http://{}:{}", wd_host, wd_port);
