@@ -1,0 +1,43 @@
+stages:
+  - test
+  - build
+  - push
+  - deploy
+
+rust-test:
+  stage: test
+  image: rust:1.48
+  script:
+    - rustup component add clippy
+    - rustup component add rustfmt
+    - cargo clippy
+    - cargo fmt --all -- --check
+    - cargo test
+
+image-build:
+  stage: build
+  only:
+    - master
+  script:
+    - sed s/SECRET/$TELEGRAM_SECRET/ docker-compose.yml.example > docker-compose.yml
+    - sed -i s/ADMIN/$TELEGRAM_ADMIN/ docker-compose.yml
+    - docker build -t $CI_REGISTRY_IMAGE:latest -f Dockerfile ./
+
+image-push:
+  stage: push
+  only:
+    - master
+  script:
+    - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
+    - docker push $CI_REGISTRY_IMAGE:latest
+
+image-peploy:
+  stage: deploy
+  only:
+    - master
+  tags:
+    - cd
+  script:
+    - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
+    - echo todo
+    # - ansible-playbook /etc/ansible/playbooks/deploy.yml -l web --tags all-sides-telegram
